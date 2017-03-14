@@ -41,6 +41,7 @@
 
 #define ACC
 //#define USE_FAKE_ACC
+#define HOVER
 #define USE_ACC_SPI_MPU6500
 
 #define ACC_MPU6500_ALIGN CW180_DEG

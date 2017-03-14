@@ -94,15 +94,16 @@
 #include "flight/failsafe.h"
 #include "flight/gtune.h"
 #include "flight/navigation.h"
+#include "flight/hover.h"
 
 #include "osd/osd_element.h"
 #include "osd/osd.h"
 #include "osd/fc_state.h"
-
 #include "fc/msp_server_fc.h"
 
 #include "fc/runtime_config.h"
 #include "fc/config.h"
+
 #include "config/feature.h"
 
 // June 2013     V2.2-dev
@@ -958,8 +959,10 @@ void taskUpdateRxMain(void)
     isRXDataNew = true;
 
 #if !defined(BARO) && !defined(SONAR)
-    // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
-    updateRcCommands();
+    if (!FLIGHT_MODE(HOVER_MODE)){
+        // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
+        updateRcCommands();
+    }
 #endif
     updateLEDs();
 
@@ -973,6 +976,13 @@ void taskUpdateRxMain(void)
     // updateRcCommands() sets rcCommand[], updateAltHoldState depends on valid rcCommand[] data.
     if (sensors(SENSOR_SONAR)) {
         updateSonarAltHoldState();
+    }
+#endif
+
+//Add command to new file
+#ifdef HOVER
+    if (FLIGHT_MODE(HOVER_MODE)){
+        rxHover();
     }
 #endif
 }

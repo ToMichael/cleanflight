@@ -290,6 +290,7 @@ FC_COMMON_SRC = \
 		   fc/msp_server_fc.c \
 		   flight/altitudehold.c \
 		   flight/failsafe.c \
+		   flight/hover.c \
 		   flight/pid.c \
 		   flight/pid_luxfloat.c \
 		   flight/imu.c \
