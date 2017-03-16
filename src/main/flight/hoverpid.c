@@ -52,6 +52,7 @@
 #include "flight/navigation.h"
 #include "flight/gtune.h"
 #include "flight/mixer.h"
+#include "flight/hover.h"
 
 extern float dT;
 extern uint8_t PIDweight[3];
@@ -63,11 +64,8 @@ extern pt1Filter_t yawFilter;
 extern biquadFilter_t dtermFilterNotch[3];
 extern biquadFilter_t dtermFilterLpf[3];
 
-extern uint8_t motorCount;
+extern float accelAngle[2];
 
-#ifdef BLACKBOX
-extern int32_t axisPID_P[3], axisPID_I[3], axisPID_D[3];
-#endif
 
 // constants to scale pidLuxFloat so output is same as pidMultiWiiRewrite
 static const float luxPTermScale = 1.0f / 128;
@@ -75,7 +73,7 @@ static const float luxITermScale = 1000000.0f / 0x1000000;
 static const float luxDTermScale = (0.000001f * (float)0xFFFF) / 512;
 static const float luxGyroScale = 16.4f / 4; // the 16.4 is needed because mwrewrite does not scale according to the gyro model gyro.scale
 
-STATIC_UNIT_TESTED int16_t pidLuxFloatCore(int axis, const pidProfile_t *pidProfile, float gyroRate, float angleRate)
+STATIC_UNIT_TESTED int16_t pidHoverCore(int axis, const pidProfile_t *pidProfile, float gyroRate, float angleRate)
 {
     static float lastRateForDelta[3];
 
@@ -90,7 +88,7 @@ STATIC_UNIT_TESTED int16_t pidLuxFloatCore(int axis, const pidProfile_t *pidProf
         if (pidProfile->yaw_lpf_hz) {
             PTerm = pt1FilterApply4(&yawFilter, PTerm, pidProfile->yaw_lpf_hz, getdT());
         }
-        if (pidProfile->yaw_p_limit && motorCount >= 4) {
+        if (pidProfile->yaw_p_limit) {
             PTerm = constrainf(PTerm, -pidProfile->yaw_p_limit, pidProfile->yaw_p_limit);
         }
     }
@@ -100,14 +98,6 @@ STATIC_UNIT_TESTED int16_t pidLuxFloatCore(int axis, const pidProfile_t *pidProf
     // limit maximum integrator value to prevent WindUp - accumulating extreme values when system is saturated.
     // I coefficient (I8) moved before integration to make limiting independent from PID settings
     ITerm = constrainf(ITerm, -PID_MAX_I, PID_MAX_I);
-    // Anti windup protection
-    if (rcModeIsActive(BOXAIRMODE)) {
-        if (STATE(ANTI_WINDUP) || motorLimitReached) {
-            ITerm = constrainf(ITerm, -ITermLimitf[axis], ITermLimitf[axis]);
-        } else {
-            ITermLimitf[axis] = ABS(ITerm);
-        }
-    }
     lastITermf[axis] = ITerm;
 
     // -----calculate D component
@@ -117,13 +107,9 @@ STATIC_UNIT_TESTED int16_t pidLuxFloatCore(int axis, const pidProfile_t *pidProf
         DTerm = 0;
     } else {
         float delta;
-        if (pidProfile->deltaMethod == PID_DELTA_FROM_MEASUREMENT) {
-            delta = -(gyroRate - lastRateForDelta[axis]);
-            lastRateForDelta[axis] = gyroRate;
-        } else {
-            delta = rateError - lastRateForDelta[axis];
-            lastRateForDelta[axis] = rateError;
-        }
+        delta = rateError - lastRateForDelta[axis];
+        lastRateForDelta[axis] = rateError;
+
         // Divide delta by targetLooptime to get differential (ie dr/dt)
         delta /= getdT();
 
@@ -144,31 +130,29 @@ STATIC_UNIT_TESTED int16_t pidLuxFloatCore(int axis, const pidProfile_t *pidProf
         DTerm = luxDTermScale * delta * pidProfile->D8[axis] * PIDweight[axis] / 100;
         DTerm = constrainf(DTerm, -PID_MAX_D, PID_MAX_D);
     }
-
+    GET_PID_LUX_FLOAT_CORE_LOCALS(axis);
+    // -----calculate total PID output
+    return lrintf(PTerm + ITerm + DTerm);
 }
 
-void pidHover(const pidProfile_t *pidProfile, const controlRateConfig_t *controlRateConfig,
-        uint16_t max_angle_inclination, const rollAndPitchTrims_t *angleTrim, const rxConfig_t *rxConfig)
+void pidHover(const pidProfile_t *pidProfile,uint16_t max_angle_inclination, const rollAndPitchTrims_t *angleTrim)
 {
-
-
     // ----------PID controller----------
     for (int axis = 0; axis < 3; axis++) {
         // -----Get the desired angle rate depending on flight mode
         float angleRate;
         if (axis == FD_YAW) {
             // YAW is always gyro-controlled (MAG correction is applied to rcCommand) 100dps to 1100dps max yaw rate
-            angleRate = 27.0f * rcCommand[YAW]) / 32.0f;
+            angleRate = 27.0f * rcCommand[YAW] / 32.0f;
         } else {
-
+        //added accelAngle[axis] to change error angle
             const float errorAngle = constrain(2 * rcCommand[axis], -((int)max_angle_inclination), max_angle_inclination)
-                        - attitude.raw[axis] + angleTrim->raw[axis];
+                        - attitude.raw[axis] + angleTrim->raw[axis] + accelAngle[axis];
 
             angleRate = errorAngle * pidProfile->P8[PIDLEVEL] / 16.0f;
 
         }
-       
-
+        
         // --------low-level gyro-based PID. ----------
         const float gyroRate = luxGyroScale * gyroADCf[axis] * gyro.scale;
         axisPID[axis] = pidHoverCore(axis, pidProfile, gyroRate, angleRate);

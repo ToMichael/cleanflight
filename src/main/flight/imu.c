@@ -51,6 +51,7 @@
 #include "flight/mixer.h"
 #include "flight/pid.h"
 #include "flight/imu.h"
+#include "flight/hover.h"
 
 #include "io/gps.h"
 
@@ -218,6 +219,11 @@ void imuCalculateAcceleration(uint32_t deltaT)
     // sum up Values for later integration to get velocity and distance
     accTimeSum += deltaT;
     accSumCount++;
+
+    //Run acceleration correction
+    for(int axis=0; axis < 2; axis++){
+        imuResetAccelerationSum();
+    } 
 }
 
 static float invSqrt(float x)

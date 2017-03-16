@@ -676,13 +676,22 @@ void subTaskPidController(void)
     const uint32_t startTime = micros();
 
     // PID - note this is function pointer set by setPIDController()
-    pidLuxFloat(
-        pidProfile(),
-        currentControlRateProfile,
-        imuConfig()->max_angle_inclination,
-        &accelerometerConfig()->accelerometerTrims,
-        rxConfig()
-    );
+    if FLIGHT_MODE(HOVER_MODE){      
+        pidHover(
+            pidProfile(),
+            imuConfig()->max_angle_inclination,
+            &accelerometerConfig()->accelerometerTrims
+        );
+
+    }else{
+        pidLuxFloat(
+            pidProfile(),
+            currentControlRateProfile,
+            imuConfig()->max_angle_inclination,
+            &accelerometerConfig()->accelerometerTrims,
+            rxConfig()
+        );
+    }
 
     if (debugMode == DEBUG_PIDLOOP) {debug[2] = micros() - startTime;}
 }
@@ -962,6 +971,8 @@ void taskUpdateRxMain(void)
     if (!FLIGHT_MODE(HOVER_MODE)){
         // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
         updateRcCommands();
+        accelReset(0);
+        accelReset(1);
     }
 #endif
     updateLEDs();
@@ -983,6 +994,7 @@ void taskUpdateRxMain(void)
 #ifdef HOVER
     if (FLIGHT_MODE(HOVER_MODE)){
         rxHover();
+        rcControlsConfig()->deadband = 40;
     }
 #endif
 }

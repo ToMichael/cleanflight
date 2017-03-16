@@ -291,6 +291,7 @@ FC_COMMON_SRC = \
 		   flight/altitudehold.c \
 		   flight/failsafe.c \
 		   flight/hover.c \
+		   flight/hoverpid.c \
 		   flight/pid.c \
 		   flight/pid_luxfloat.c \
 		   flight/imu.c \
