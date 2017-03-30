@@ -237,7 +237,7 @@ void rxHover(void){
     //These curves are constructed by 7 points and have a linear interpolation betweeen these points
 
     for (int axis = 0; axis < 3; axis++) {
-        int32_t prop1;
+        //int32_t prop1;
         //tmp set by data
         int32_t tmp = MIN(ABS(rcData[axis] - rxConfig()->midrc), 500);
         if (axis == ROLL || axis == PITCH) {
@@ -251,10 +251,10 @@ void rxHover(void){
             }
             //lookup data curves
             rcCommand[axis] = rcLookupPitchRoll(tmp);
-            prop1 = 100 - (uint16_t)currentControlRateProfile->rates[axis] * tmp / 500;
-            prop1 = (uint16_t)prop1 * prop2 / 100;
+            //prop1 = 100 - (uint16_t)currentControlRateProfile->rates[axis] * tmp / 500;
+            //prop1 = (uint16_t)prop1 * prop2 / 100;
             // non coupled PID reduction scaler used in PID controller 1 and PID controller 2. 100 means 100% of the pids
-            PIDweight[axis] = prop2;
+            //PIDweight[axis] = prop2;
         } else {
             if (rcControlsConfig()->yaw_deadband) {
                 if (tmp > rcControlsConfig()->yaw_deadband) {
@@ -264,7 +264,7 @@ void rxHover(void){
                 }
             }
             rcCommand[axis] = rcLookupYaw(tmp) * -rcControlsConfig()->yaw_control_direction;
-            prop1 = 100 - (uint16_t)currentControlRateProfile->rates[axis] * ABS(tmp) / 500;
+            //prop1 = 100 - (uint16_t)currentControlRateProfile->rates[axis] * ABS(tmp) / 500;
             // YAW TPA disabled.
             PIDweight[axis] = 100;
         }
