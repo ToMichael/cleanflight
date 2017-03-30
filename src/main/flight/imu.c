@@ -220,10 +220,18 @@ void imuCalculateAcceleration(uint32_t deltaT)
     accTimeSum += deltaT;
     accSumCount++;
 
+  //  if (accSumCount == 50){
     //Run acceleration correction
-    for(int axis=0; axis < 2; axis++){
+        for(int axis=0; axis < 3; axis++){
+            accelCorrection(axis,accTimeSum,(float)(accSum[axis]/accSumCount));
+        }
+
+        //accelCorrection(2,accTimeSum,(float)(accSum[2]/accSumCount));
+        
+        //reset for next run
         imuResetAccelerationSum();
-    } 
+   // }
+    
 }
 
 static float invSqrt(float x)

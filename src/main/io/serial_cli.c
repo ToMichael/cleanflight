@@ -112,6 +112,7 @@
 #include "drivers/flash_m25p16.h"
 
 #include "common/printf.h"
+#include "flight/hover.h"
 
 #include "serial_cli.h"
 #include "../sensors/amperage.h"
@@ -200,6 +201,10 @@ static void cliFlashRead(char *cmdline);
 #ifdef USE_SDCARD
 static void cliSdInfo(char *cmdline);
 #endif
+// for storage out
+
+
+extern float storeParams[1000][3];
 
 // buffer
 static char cliBuffer[48];
@@ -1890,6 +1895,12 @@ static void cliDump(char *cmdline)
     }
 
     if (dumpMask & DUMP_MASTER) {
+
+        for (int ii=0; ii<1000; ii++){
+            cliPrintf("%s,",ftoa(storeParams[ii][0],buf));
+            cliPrintf("%s,",ftoa(storeParams[ii][1],buf));
+            cliPrintf("%s,\r\n",ftoa(storeParams[ii][2],buf));
+        }
 
         cliPrint("\r\n# version\r\n");
         cliVersion(NULL);

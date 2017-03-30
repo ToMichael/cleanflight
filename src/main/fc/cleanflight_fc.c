@@ -710,6 +710,7 @@ void subTaskMainSubprocesses(void)
 #endif
 
 #if defined(BARO) || defined(SONAR)
+    if (!rcModeIsActive(BOXHOVER)){
         // FIXME outdated comments?
         // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
         // this must be called here since applyAltHold directly manipulates rcCommands[]
@@ -720,6 +721,7 @@ void subTaskMainSubprocesses(void)
                 applyAltHold();
             }
         }
+    }
 #endif
 
 #ifdef MAG
@@ -971,8 +973,6 @@ void taskUpdateRxMain(void)
     if (!FLIGHT_MODE(HOVER_MODE)){
         // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
         updateRcCommands();
-        accelReset(0);
-        accelReset(1);
     }
 #endif
     updateLEDs();
@@ -991,12 +991,13 @@ void taskUpdateRxMain(void)
 #endif
 
 //Add command to new file
-#ifdef HOVER
+
+    updateHoverMode();
+    
     if (FLIGHT_MODE(HOVER_MODE)){
         rxHover();
-        rcControlsConfig()->deadband = 40;
     }
-#endif
+
 }
 
 #ifdef GPS
