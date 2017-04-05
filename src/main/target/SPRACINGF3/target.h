@@ -45,6 +45,7 @@
 #define GYRO_MPU6050_ALIGN CW270_DEG
 
 #define ACC
+#define HOVER
 #define USE_ACC_MPU6050
 #define ACC_MPU6050_ALIGN CW270_DEG
 

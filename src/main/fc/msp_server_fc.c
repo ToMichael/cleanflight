@@ -167,6 +167,7 @@ static const box_t boxes[CHECKBOX_ITEM_COUNT] = {
     { "AIR MODE",  BOXAIRMODE,   28 },
     { "VTX",       BOXVTX,       29 },
     { "HOVER",     BOXHOVER,     30 },
+    { "HOVERFREE", BOXHOVERFREE, 31 },
 };
 
 // mask of enabled IDs, calculated on start based on enabled features. boxId_e is used as bit index.
@@ -297,6 +298,7 @@ static void initActiveBoxIds(void)
         ena |= 1 << BOXANGLE;
         ena |= 1 << BOXHORIZON;
         ena |= 1 << BOXHOVER;
+        ena |= 1 << BOXHOVERFREE;
     }
 
 #ifdef BARO

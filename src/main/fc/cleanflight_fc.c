@@ -134,6 +134,7 @@ static uint32_t disarmAt;     // Time of automatic disarm when "Don't spin the m
 extern uint32_t currentTime;
 extern uint8_t PIDweight[3];
 extern uint8_t dynP8[3], dynI8[3], dynD8[3];
+extern bool inHover;
 
 static bool isRXDataNew;
 
@@ -676,7 +677,8 @@ void subTaskPidController(void)
     const uint32_t startTime = micros();
 
     // PID - note this is function pointer set by setPIDController()
-    if FLIGHT_MODE(HOVER_MODE){      
+    //if FLIGHT_MODE(HOVER_MODE){ 
+    if(inHover){     
         pidHover(
             pidProfile(),
             imuConfig()->max_angle_inclination,
@@ -710,7 +712,8 @@ void subTaskMainSubprocesses(void)
 #endif
 
 #if defined(BARO) || defined(SONAR)
-    if (!rcModeIsActive(BOXHOVER)){
+    //if (!rcModeIsActive(BOXHOVER)){
+    if(!inHover){  
         // FIXME outdated comments?
         // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
         // this must be called here since applyAltHold directly manipulates rcCommands[]
@@ -970,7 +973,8 @@ void taskUpdateRxMain(void)
     isRXDataNew = true;
 
 #if !defined(BARO) && !defined(SONAR)
-    if (!FLIGHT_MODE(HOVER_MODE)){
+    if(!inHover){
+    //if (!FLIGHT_MODE(HOVER_MODE)){
         // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
         updateRcCommands();
     }
@@ -994,9 +998,12 @@ void taskUpdateRxMain(void)
 
     updateHoverMode();
     
-    if (FLIGHT_MODE(HOVER_MODE)){
+    if(inHover){
+    //if (FLIGHT_MODE(HOVER_MODE)){
         rxHover();
     }
+
+    
 
 }
 

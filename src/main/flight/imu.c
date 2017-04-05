@@ -74,6 +74,7 @@ float fc_acc;
 float smallAngleCosZ = 0;
 
 static bool isAccelUpdatedAtLeastOnce = false;
+extern bool inHover;
 
 static imuRuntimeConfig_t *imuRuntimeConfig;
 static accDeadband_t *accDeadband;
@@ -222,14 +223,14 @@ void imuCalculateAcceleration(uint32_t deltaT)
 
   //  if (accSumCount == 50){
     //Run acceleration correction
-        for(int axis=0; axis < 3; axis++){
+        /*for(int axis=0; axis < 3; axis++){
             accelCorrection(axis,accTimeSum,(float)(accSum[axis]/accSumCount));
+        }*/
+        if (inHover){
+            accelCorrection(2,accTimeSum,(float)(accSum[2]/accSumCount));
+            //reset for next run
+            imuResetAccelerationSum();
         }
-
-        //accelCorrection(2,accTimeSum,(float)(accSum[2]/accSumCount));
-        
-        //reset for next run
-        imuResetAccelerationSum();
    // }
     
 }

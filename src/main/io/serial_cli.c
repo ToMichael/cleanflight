@@ -204,7 +204,7 @@ static void cliSdInfo(char *cmdline);
 // for storage out
 
 
-extern float storeParams[1000][3];
+extern float storeParams[SCLENGTH][3];
 
 // buffer
 static char cliBuffer[48];
@@ -1896,7 +1896,7 @@ static void cliDump(char *cmdline)
 
     if (dumpMask & DUMP_MASTER) {
 
-        for (int ii=0; ii<1000; ii++){
+        for (int ii=0; ii < SCLENGTH; ii++){
             cliPrintf("%s,",ftoa(storeParams[ii][0],buf));
             cliPrintf("%s,",ftoa(storeParams[ii][1],buf));
             cliPrintf("%s,\r\n",ftoa(storeParams[ii][2],buf));
