@@ -125,6 +125,7 @@ uint16_t gyroDeltaUs = 0;
 
 int16_t magHold;
 int16_t headFreeModeHold;
+int32_t hoverThrottleOffset;
 
 uint8_t motorControlEnable = false;
 
@@ -134,7 +135,6 @@ static uint32_t disarmAt;     // Time of automatic disarm when "Don't spin the m
 extern uint32_t currentTime;
 extern uint8_t PIDweight[3];
 extern uint8_t dynP8[3], dynI8[3], dynD8[3];
-extern bool inHover;
 
 static bool isRXDataNew;
 
@@ -194,13 +194,15 @@ Those are: TPA, throttle expo
 static void updateRcCommands(void)
 {
     int32_t prop2;
-
+    
+    //applies correction factor for switching back from hover mode
+    int32_t temporaryThrottle =  rcData[THROTTLE] + hoverThrottleOffset;
     // PITCH & ROLL only dynamic PID adjustment,  depending on throttle value
-    if (rcData[THROTTLE] < currentControlRateProfile->tpa_breakpoint) {
+    if (temporaryThrottle < currentControlRateProfile->tpa_breakpoint) {
         prop2 = 100;
     } else {
-        if (rcData[THROTTLE] < 2000) {
-            prop2 = 100 - (uint16_t)currentControlRateProfile->dynThrPID * (rcData[THROTTLE] - currentControlRateProfile->tpa_breakpoint) / (2000 - currentControlRateProfile->tpa_breakpoint);
+        if (temporaryThrottle < 2000) {
+            prop2 = 100 - (uint16_t)currentControlRateProfile->dynThrPID * (temporaryThrottle - currentControlRateProfile->tpa_breakpoint) / (2000 - currentControlRateProfile->tpa_breakpoint);
         } else {
             prop2 = 100 - currentControlRateProfile->dynThrPID;
         }
@@ -248,7 +250,7 @@ static void updateRcCommands(void)
         }
     }
 
-    int32_t tmp = constrain(rcData[THROTTLE], rxConfig()->mincheck, PWM_RANGE_MAX);
+    int32_t tmp = constrain(temporaryThrottle, rxConfig()->mincheck, PWM_RANGE_MAX);
     tmp = (uint32_t)(tmp - rxConfig()->mincheck) * PWM_RANGE_MIN / (PWM_RANGE_MAX - rxConfig()->mincheck);       // [MINCHECK;2000] -> [0;1000]
     rcCommand[THROTTLE] = rcLookupThrottle(tmp);
 
@@ -344,6 +346,8 @@ void mwArm(void)
     if (ARMING_FLAG(OK_TO_ARM)) {
         if (ARMING_FLAG(ARMED)) {
             return;
+        } else {
+            hoverThrottleOffset = 0;
         }
         if (rcModeIsActive(BOXFAILSAFE)) {
             return;
@@ -678,14 +682,15 @@ void subTaskPidController(void)
 
     // PID - note this is function pointer set by setPIDController()
     //if FLIGHT_MODE(HOVER_MODE){ 
-    if(inHover){     
+    if(getHoverMode()==1){    // in hover mode 
         pidHover(
             pidProfile(),
             imuConfig()->max_angle_inclination,
             &accelerometerConfig()->accelerometerTrims
         );
 
-    }else{
+    }else{ 
+        // PID stabilisation (EG Angle mode)
         pidLuxFloat(
             pidProfile(),
             currentControlRateProfile,
@@ -713,7 +718,7 @@ void subTaskMainSubprocesses(void)
 
 #if defined(BARO) || defined(SONAR)
     //if (!rcModeIsActive(BOXHOVER)){
-    if(!inHover){  
+    if(getHoverMode()==0){  
         // FIXME outdated comments?
         // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
         // this must be called here since applyAltHold directly manipulates rcCommands[]
@@ -972,36 +977,42 @@ void taskUpdateRxMain(void)
     processRx();
     isRXDataNew = true;
 
-#if !defined(BARO) && !defined(SONAR)
-    if(!inHover){
-    //if (!FLIGHT_MODE(HOVER_MODE)){
-        // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
-        updateRcCommands();
-    }
-#endif
-    updateLEDs();
 
-#ifdef BARO
-    if (sensors(SENSOR_BARO)) {
-        updateAltHoldState();
-    }
-#endif
+    switch(getHoverMode()){
+        //switch for hover mode:
+        //0 is not hover mode
+        case 0 :
+            #if !defined(BARO) && !defined(SONAR)
+                //if (!FLIGHT_MODE(HOVER_MODE)){
+                    // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
+                    updateRcCommands();
+            #endif
+                updateLEDs();
 
-#ifdef SONAR
-    // updateRcCommands() sets rcCommand[], updateAltHoldState depends on valid rcCommand[] data.
-    if (sensors(SENSOR_SONAR)) {
-        updateSonarAltHoldState();
-    }
-#endif
+            #ifdef BARO
+                if (sensors(SENSOR_BARO)) {
+                    updateAltHoldState();
+                }
+            #endif
 
-//Add command to new file
+            #ifdef SONAR
+                // updateRcCommands() sets rcCommand[], updateAltHoldState depends on valid rcCommand[] data.
+                if (sensors(SENSOR_SONAR)) {
+                    updateSonarAltHoldState();
+                }
+            #endif
 
-    updateHoverMode();
-    
-    if(inHover){
-    //if (FLIGHT_MODE(HOVER_MODE)){
-        rxHover();
-    }
+            break;
+
+        //1 is in Hover Mode
+        case 1 :
+            rxHover();
+            break;
+        //2 is leaving Hover Mode (possibly Landing Mode)
+        case 2 :
+            hoverThrottleOffset = leaveHoverMode();
+            break;
+        }
 
     
 

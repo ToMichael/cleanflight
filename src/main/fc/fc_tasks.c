@@ -55,21 +55,21 @@ cfTask_t cfTasks[] = {
         .checkFunc = taskPidCheck,
         .taskFunc = taskPid,
         .desiredPeriod = TASK_PERIOD_HZ(8000),
-        .staticPriority = TASK_PRIORITY_REALTIME,
-    },
+            .staticPriority = TASK_PRIORITY_REALTIME,
+        },
 
     [TASK_ACCEL] = {
         .taskName = "ACCEL",
         .taskFunc = taskUpdateAccelerometer,
-        .desiredPeriod = TASK_PERIOD_MS(1),
-        .staticPriority = TASK_PRIORITY_MEDIUM,
+        .desiredPeriod = TASK_PERIOD_HZ(1000),
+        .staticPriority = TASK_PRIORITY_HIGH,
     },
 
     [TASK_ATTITUDE] = {
         .taskName = "ATTITUDE",
         .taskFunc = taskUpdateAttitude,
         .desiredPeriod = TASK_PERIOD_HZ(100),
-        .staticPriority = TASK_PRIORITY_MEDIUM,
+        .staticPriority = TASK_PRIORITY_HIGH,
     },
 
     [TASK_RX] = {

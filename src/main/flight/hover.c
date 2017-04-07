@@ -17,6 +17,7 @@
 
 #include "drivers/sensor.h"
 #include "drivers/accgyro.h"
+#include "drivers/system.h"
 
 #include "sensors/sensors.h"
 #include "sensors/gyro.h"
@@ -52,91 +53,43 @@ extern uint8_t PIDweight[3];
 static float vel[3] = {0.0f,0.0f,0.0f};
 //static float pos[3] = {0.0f,0.0f,0.0f};
 float accelAngle[2] = {0.0f,0.0f};
-int32_t throCorrect = 0;
-static float accZ_old = 0;
-static float setVel=0;
+static float setPointVel=0;
 int32_t errorVelI = 0;
 static float prevThroData = 0;
 int32_t centre = 0;
 static float initialThro = 0;
 float storeParams[SCLENGTH][3];
 uint16_t storeCount = 0;
-bool inHover = 0;
+static uint32_t previousLandControlTime = 0;
 
 
 void velCurve(int32_t centre, int32_t data){
     
     if(data<1100){
-        setVel -= (1100 - data)/250.0f;
+        setPointVel -= (1100 - data)/250.0f;
     } else if(data>1900){
-        setVel += (data - 1900)/250.0f;
+        setPointVel += (data - 1900)/250.0f;
     } else {
         if (ABS(data-centre)<100){
-            setVel += ((float)data - prevThroData)*0.2f;
+            setPointVel += ((float)data - prevThroData)*0.2f;
         } else if (ABS(data-centre)<300){
-            setVel += ((float)data - prevThroData)*0.6f;
+            setPointVel += ((float)data - prevThroData)*0.6f;
         } else {
-            setVel += ((float)data - prevThroData)*2;
+            setPointVel += ((float)data - prevThroData)*2;
         }
         prevThroData = data;
     }
 }
 
 
-
-void altHold(void)
-{
-
-        //angleCorrect variable set to change the throttleCorrect variable more quickly than via PID loop 
-
-        /*float angleCorrect=1.0f;
-        angleCorrect = 1.0f/(cos_approx(DECIDEGREES_TO_RADIANS(attitude.values.roll))*cos_approx(DECIDEGREES_TO_DEGREES(attitude.values.pitch)));
-        throCorrect = throCorrect * angleCorrect;*/
-
-        /*if (ABS(rcData[THROTTLE] - prevThroData) > rcControlsConfig()->alt_hold_deadband) {
-            errorVelI=0;
-            vel[Z]= 0.0f;
-            rcCommand[THROTTLE] = initialThro + rcData[THROTTLE] - prevThroData;
-
-            if (rcData[THROTTLE] > prevThroData){
-                rcCommand[THROTTLE] -= rcControlsConfig()->alt_hold_deadband;    
-            } else {
-                rcCommand[THROTTLE] += rcControlsConfig()->alt_hold_deadband; 
-            }
-        } else {
-            rcCommand[THROTTLE] = constrain(initialThro + throCorrect, motorConfig()->minthrottle, motorConfig()->maxthrottle);
-        }*/
-
-    //if inside deadband just do control 
-    //if outside deadband change the set point for velocity according to S curve
-    //if data value unchanged (within 10) for 100 runs renter deadband and reconstruct curve
-
-
-    if (ABS(rcData[THROTTLE] - prevThroData) > TEMPDB){
-        velCurve(centre,rcData[THROTTLE]);
-        errorVelI=0;    
-    }
-
-  /*  if (ABS(rcData[THROTTLE] - prevThroData))>40){
-        setVel += (rcData[THROTTLE] - prevThroData)/10.0f;
-        prevThroData = rcData[THROTTLE];
-        errorVelI=0;
-        
-    }*/
-
-    rcCommand[THROTTLE] = constrain(initialThro + throCorrect, motorConfig()->minthrottle, motorConfig()->maxthrottle);
-   
-    return;   
-}
-
-
-int32_t pidThrottle(float setVel, float accZ, float accZ_old, float accTimeSum){
-    int32_t result = 0;
+void imuCalculatePIDCorrectionValue(float accZ, float accZ_old, float accTimeSum){
+    
+    int32_t throttleCorrection = 0;
     
     //int32_t error;
 /*
     // P
-    error = setVel - (int32_t)(vel[2]);
+    error = setPointVel - (int32_t)(vel[2]);
     //result = constrain((HOVER_P * error), -300, +300);
     result = HOVER_P * error;
     // I
@@ -150,7 +103,7 @@ int32_t pidThrottle(float setVel, float accZ, float accZ_old, float accTimeSum){
 
     float resfloat = 0.0f;
     float errfloat = 0.0f;
-    errfloat = setVel - vel[Z];
+    errfloat = setPointVel - vel[Z];
     resfloat = HOVER_P * errfloat;
 
 
@@ -159,11 +112,10 @@ int32_t pidThrottle(float setVel, float accZ, float accZ_old, float accTimeSum){
 
     resfloat -= HOVER_D * (accZ + (accZ_old)) / 2;
 
-    result = (int32_t)constrain(resfloat,-THRLIMIT,THRLIMIT);
+    throttleCorrection = (int32_t)constrain(resfloat,-THRLIMIT,THRLIMIT);
 
-    return result;
+    rcCommand[THROTTLE] = constrain(initialThro + throttleCorrection, motorConfig()->minthrottle, motorConfig()->maxthrottle);
    
-
 }
 
 void accelReset (int axis){
@@ -173,88 +125,12 @@ void accelReset (int axis){
     if (axis<2){
         accelAngle[axis] = 0.0f;
     } else {
-        throCorrect = 0;
+
    }
    return;
 }
 
-
-//enabling mode and gathering initialisation data
-void updateHoverMode (void){
-//If the stick is not in the Hover designated position but we are in Hover mode:
-//Disable Hover mode and reset the deadband parameters
-
-    if (!rcModeIsActive(BOXHOVER)) {
-        if(FLIGHT_MODE(HOVER_MODE)){
-            DISABLE_FLIGHT_MODE(HOVER_MODE);
-            rcControlsConfig()->deadband = 0;
-            rcControlsConfig()->alt_hold_deadband = 40;
-            inHover = false;
-        }
-    } else {
-        if (!FLIGHT_MODE(HOVER_MODE)) {
-            DISABLE_FLIGHT_MODE(ANGLE_MODE);
-            DISABLE_FLIGHT_MODE(HOVERFREE_MODE);
-            ENABLE_FLIGHT_MODE(HOVER_MODE);
-            rcControlsConfig()->deadband = 40;
-            rcControlsConfig()->alt_hold_deadband = 200;
-            prevThroData = rcData[THROTTLE];
-            centre = rcData[THROTTLE];
-            initialThro = rcCommand[THROTTLE];
-            errorVelI = 0;
-            setVel = 0;
-            for (int axis = 0; axis < 3; axis++) {
-                accelReset(axis);
-               // kalmanInit((float)accSum[axis]/(float)accSumCount,axis);
-            }
-
-            imuResetAccelerationSum();
-            inHover = true;
-        }
-    }
-
-
-    if (!rcModeIsActive(BOXHOVERFREE)) {
-        if(FLIGHT_MODE(HOVERFREE_MODE)){
-            DISABLE_FLIGHT_MODE(HOVERFREE_MODE);
-            rcControlsConfig()->deadband = 0;
-            rcControlsConfig()->alt_hold_deadband = 40;
-            imuConfig()->max_angle_inclination = 500;
-            inHover = false;
-        }
-    } else {
-        if (!FLIGHT_MODE(HOVERFREE_MODE)) {
-            DISABLE_FLIGHT_MODE(ANGLE_MODE);
-            DISABLE_FLIGHT_MODE(HOVER_MODE);
-            ENABLE_FLIGHT_MODE(HOVERFREE_MODE);
-            rcControlsConfig()->deadband = 40;
-            rcControlsConfig()->alt_hold_deadband = 200;
-            imuConfig()->max_angle_inclination = 800;
-            prevThroData = rcData[THROTTLE];
-            centre = rcData[THROTTLE];
-            initialThro = rcCommand[THROTTLE];
-            errorVelI = 0;
-            setVel = 0;
-            for (int axis = 0; axis < 3; axis++) {
-                accelReset(axis);
-               // kalmanInit((float)accSum[axis]/(float)accSumCount,axis);
-            }
-
-            imuResetAccelerationSum();
-            inHover = true;
-        }
-    }
-
-
-
-    return;
-}
-
-
-
-
-
-void accelCorrection(int axis,float accTimeSum,float acc){
+void imuCalculateVelocityIntegration(int axis,float accTimeSum,float acc, float acc_old){
 
     //Logic:
     //If the control stick is in the deadband integrate accelerations (pts) to get velocity
@@ -274,7 +150,7 @@ void accelCorrection(int axis,float accTimeSum,float acc){
     // Integrator - velocity, cm/sec
     //accKalman = kalmanUpdate(acc,axis);
     
-    vel_acc = (acc + accZ_old) / 2 * accVelScale * (float)accTimeSum;
+    vel_acc = (acc + acc_old) / 2 * accVelScale * (float)accTimeSum;
 
     // Integrator - Position in cm
     /*if ((ABS(rcData[axis] - rxConfig()->midrc)) < (rcControlsConfig()->deadband)){
@@ -308,39 +184,30 @@ void accelCorrection(int axis,float accTimeSum,float acc){
     } else {*/
         //Throttle Correct calls in the last two accelerations
          //if ((ABS(rcData[THROTTLE] - prevThroData)) < rcControlsConfig()->alt_hold_deadband){
-         //   throCorrect = pidThrottle(setVel,acc,accZ_old,accTimeSum);         
+         //   throCorrect = pidThrottle(setPointVel,acc,accZ_old,accTimeSum);         
          //} else {
            // throCorrect = 0;
          //} 
 
 
-       //if (ABS(rcData[THROTTLE] - prevThroData) < TEMPDB){
-            throCorrect = pidThrottle(setVel,acc,accZ_old,accTimeSum);         
+       //if (ABS(rcData[THROTTLE] - prevThroData) < TEMPDB){       
        // } else {
          //   throCorrect = 0;
         // } 
 
-            storeCount++;
-            storeParams[storeCount][0]=setVel;
+            storeParams[storeCount][0]=accTimeSum;
             storeParams[storeCount][1]=vel[Z];
-            storeParams[storeCount][2]=(float)throCorrect;
-            
-            
+            storeParams[storeCount][2]=acc;  
+            storeCount++;
 
             if (storeCount == SCLENGTH){
                 storeCount = 0;
             }
-
-   //}
-
-    accZ_old = acc;
-
     return;
 }
 
-
-void rxHover(void){
-    //int32_t prop2 = 100;
+void calculatePitchRollYawRCCommands(void){
+ //int32_t prop2 = 100;
 
     // PITCH & ROLL only dynamic PID adjustment,  depending on throttle value
     // 100 corresponds to 100%, any value after that sees the PID gains linearly decreased
@@ -361,6 +228,9 @@ void rxHover(void){
     for (int axis = 0; axis < 3; axis++) {
         //int32_t prop1;
         //tmp set by data
+
+        
+
         int32_t tmp = MIN(ABS(rcData[axis] - rxConfig()->midrc), 500);
         if (axis == ROLL || axis == PITCH) {
             //deadband logic
@@ -377,7 +247,7 @@ void rxHover(void){
             //prop1 = (uint16_t)prop1 * prop2 / 100;
             // non coupled PID reduction scaler used in PID controller 1 and PID controller 2. 100 means 100% of the pids
             //PIDweight[axis] = prop2;
-        } else {
+        } else { // yaw
             if (rcControlsConfig()->yaw_deadband) {
                 if (tmp > rcControlsConfig()->yaw_deadband) {
                     tmp -= rcControlsConfig()->yaw_deadband;
@@ -395,13 +265,137 @@ void rxHover(void){
             rcCommand[axis] = -rcCommand[axis];
         }
     } 
+}
+
+void rxHover(void){
+    
+    calculatePitchRollYawRCCommands();   
+
+    /*if (ABS(rcData[THROTTLE] - prevThroData) > rcControlsConfig()->alt_hold_deadband) {
+    errorVelI=0;
+    vel[Z]= 0.0f;
+    rcCommand[THROTTLE] = initialThro + rcData[THROTTLE] - prevThroData;
+
+        if (rcData[THROTTLE] > prevThroData){
+            rcCommand[THROTTLE] -= rcControlsConfig()->alt_hold_deadband;    
+        } else {
+        rcCommand[THROTTLE] += rcControlsConfig()->alt_hold_deadband; 
+        }
+
+    } else {
+        rcCommand[THROTTLE] = constrain(initialThro + throCorrect, motorConfig()->minthrottle, motorConfig()->maxthrottle);
+    }*/
+
+    //if inside deadband just do control 
+    //if outside deadband change the set point for velocity according to S curve
+    //if data value unchanged (within 10) for 100 runs renter deadband and reconstruct curve
+
+    if (ABS(rcData[THROTTLE] - prevThroData) > TEMPDB){
+        velCurve(centre,rcData[THROTTLE]);
+        errorVelI=0;    
+    }
+    /*  if (ABS(rcData[THROTTLE] - prevThroData))>40){
+            setPointVel += (rcData[THROTTLE] - prevThroData)/10.0f;
+            prevThroData = rcData[THROTTLE];
+            errorVelI=0;
+                
+    }*/    
 
 
-    altHold();
+}
 
-   /* int32_t tmp = constrain(rcData[THROTTLE], rxConfig()->mincheck, PWM_RANGE_MAX);
-    tmp = (uint32_t)(tmp - rxConfig()->mincheck) * PWM_RANGE_MIN / (PWM_RANGE_MAX - rxConfig()->mincheck);       // [MINCHECK;2000] -> [0;1000]
-    rcCommand[THROTTLE] = rcLookupThrottle(tmp);*/
-    return;
+void initialiseHoverMode(int32_t pitchLimits){
+    rcControlsConfig()->deadband = 40;
+    rcControlsConfig()->alt_hold_deadband = 10;
+    prevThroData = rcData[THROTTLE];
+    centre = rcData[THROTTLE];
+    initialThro = rcCommand[THROTTLE];
+    errorVelI = 0;
+    setPointVel = 0;
+    accelReset(Z);
+    imuResetAccelerationSum();
+    imuConfig()->max_angle_inclination = pitchLimits;
+    previousLandControlTime = 0;
+    /*for (int axis = 0; axis < 3; axis++) {
+                accelReset(axis);
+               // kalmanInit((float)accSum[axis]/(float)accSumCount,axis);
+    }*/
 
-   }
+}
+
+int32_t leaveHoverMode(void){
+    
+    //set variable for the previousLandControlTime as the current time in micro seconds
+    if (previousLandControlTime == 0){
+        previousLandControlTime = micros();
+    }
+
+    //still allow pitch and yaw etc.
+    calculatePitchRollYawRCCommands();  
+
+    //Reset changed PG parameters, imu parameters currently defined by param 1, rcControlsConfig by 0
+    pgReset(pgFind(25),0); //rcControlsConfig -> pgn 25
+    pgReset(pgFind(22),1); //imuConfig -> pgn 22
+
+    //continuously drop throttle if minthrottle (usually 1150) cannot be reached if stick is dropped
+    
+    if((motorConfig()->minthrottle - (rcCommand[THROTTLE] - rcData[THROTTLE])) > motorConfig()->mincommand){
+        if ((previousLandControlTime + 100) > micros()){
+            //drop throttle by 20 every 0.1 s (if high) drop less dramatically if lower ie: at mid point drop by 10 etc.
+            rcCommand[THROTTLE] -= 20 * ((rcCommand[THROTTLE] - motorConfig()->minthrottle)/(motorConfig()->maxthrottle - motorConfig()->minthrottle));
+            previousLandControlTime = micros();
+            return 0;
+        }
+    } else {  
+        //otherwise set the new value corresponding to current throttle value to current stick position
+        //move the centre by the difference between current command and throttle s.t current data value corresponds
+        //with current throttle
+        DISABLE_FLIGHT_MODE(HOVER_MODE);
+        return  rcCommand[THROTTLE] - rcData[THROTTLE];
+        
+    }
+    return 0;
+}
+
+//enabling mode and gathering initialisation data
+char getHoverMode (void){
+    if (rcModeIsActive(BOXHOVER)) { //if in hover stick position:
+        if(FLIGHT_MODE(HOVER_MODE)){ //and in hover mode
+            return 1;
+        } else { // and not in hover mode
+            //enter hover mode
+            DISABLE_FLIGHT_MODE(!HOVER_MODE);
+            ENABLE_FLIGHT_MODE(HOVER_MODE);
+            int32_t pitchLimits = 500;
+            initialiseHoverMode(pitchLimits);
+        }
+    } else { //not stick position hover
+
+        if(FLIGHT_MODE(HOVER_MODE)){
+            //leave hover mode
+            return 2;
+        }
+
+    }
+
+    if (rcModeIsActive(BOXHOVERFREE)) {
+        if(FLIGHT_MODE(HOVERFREE_MODE)){
+            return 1;
+        } else {
+            //enter hoverfree mode
+            DISABLE_FLIGHT_MODE(!HOVERFREE_MODE);
+            ENABLE_FLIGHT_MODE(HOVERFREE_MODE);
+            int32_t pitchLimits = 800;
+            initialiseHoverMode(pitchLimits);
+        }
+
+    } else {
+        
+        if(FLIGHT_MODE(HOVERFREE_MODE)){
+            //leave hoverfree mode
+            return 2;
+        }
+    }
+
+    return 0;
+}

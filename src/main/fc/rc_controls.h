@@ -50,6 +50,7 @@ typedef enum {
     BOXVTX,
     BOXHOVER,
     BOXHOVERFREE,
+    BOXLANDER,
     CHECKBOX_ITEM_COUNT
 } boxId_e;
 

@@ -74,7 +74,6 @@ float fc_acc;
 float smallAngleCosZ = 0;
 
 static bool isAccelUpdatedAtLeastOnce = false;
-extern bool inHover;
 
 static imuRuntimeConfig_t *imuRuntimeConfig;
 static accDeadband_t *accDeadband;
@@ -226,11 +225,7 @@ void imuCalculateAcceleration(uint32_t deltaT)
         /*for(int axis=0; axis < 3; axis++){
             accelCorrection(axis,accTimeSum,(float)(accSum[axis]/accSumCount));
         }*/
-        if (inHover){
-            accelCorrection(2,accTimeSum,(float)(accSum[2]/accSumCount));
-            //reset for next run
-            imuResetAccelerationSum();
-        }
+
    // }
     
 }
@@ -423,6 +418,7 @@ static bool isMagnetometerHealthy(void)
 static void imuCalculateEstimatedAttitude(void)
 {
     static uint32_t previousIMUUpdateTime;
+    static float accZ_old = 0;
     float rawYawError = 0;
     bool useAcc = false;
     bool useMag = false;
@@ -458,6 +454,22 @@ static void imuCalculateEstimatedAttitude(void)
     imuUpdateEulerAngles();
 
     imuCalculateAcceleration(deltaT); // rotate acc vector into earth frame
+
+    if (getHoverMode() == 1){
+        float accZ = accSum[Z]/accSumCount;
+        //get velocity value for PID correction
+        imuCalculateVelocityIntegration(Z,accTimeSum,accZ,accZ_old);
+        //get throttle correction value
+        //imuCalculatePIDCorrectionValue(accZ, accZ_old, accTimeSum);
+        //store acceleration value for next run
+        accZ_old = accZ;
+        //reset for next run
+        imuResetAccelerationSum();
+    }
+
+
+
+   
 }
 
 void imuUpdateAccelerometer(rollAndPitchTrims_t *accelerometerTrims)
