@@ -68,7 +68,7 @@ cfTask_t cfTasks[] = {
     [TASK_ATTITUDE] = {
         .taskName = "ATTITUDE",
         .taskFunc = taskUpdateAttitude,
-        .desiredPeriod = TASK_PERIOD_HZ(100),
+        .desiredPeriod = TASK_PERIOD_HZ(1000),
         .staticPriority = TASK_PRIORITY_HIGH,
     },
 

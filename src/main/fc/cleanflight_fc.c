@@ -682,7 +682,7 @@ void subTaskPidController(void)
 
     // PID - note this is function pointer set by setPIDController()
     //if FLIGHT_MODE(HOVER_MODE){ 
-    if(getHoverMode()==1){    // in hover mode 
+    if(getHoverMode()==IN_HOVER){    // in hover mode 
         pidHover(
             pidProfile(),
             imuConfig()->max_angle_inclination,
@@ -718,7 +718,7 @@ void subTaskMainSubprocesses(void)
 
 #if defined(BARO) || defined(SONAR)
     //if (!rcModeIsActive(BOXHOVER)){
-    if(getHoverMode()==0){  
+    if(getHoverMode()==NOT_HOVER){  
         // FIXME outdated comments?
         // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
         // this must be called here since applyAltHold directly manipulates rcCommands[]
@@ -981,7 +981,7 @@ void taskUpdateRxMain(void)
     switch(getHoverMode()){
         //switch for hover mode:
         //0 is not hover mode
-        case 0 :
+        case NOT_HOVER :
             #if !defined(BARO) && !defined(SONAR)
                 //if (!FLIGHT_MODE(HOVER_MODE)){
                     // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
@@ -1005,11 +1005,11 @@ void taskUpdateRxMain(void)
             break;
 
         //1 is in Hover Mode
-        case 1 :
+        case IN_HOVER :
             rxHover();
             break;
         //2 is leaving Hover Mode (possibly Landing Mode)
-        case 2 :
+        case LEAVE_HOVER :
             hoverThrottleOffset = leaveHoverMode();
             break;
         }

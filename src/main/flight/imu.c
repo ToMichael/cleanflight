@@ -459,8 +459,8 @@ static void imuCalculateEstimatedAttitude(void)
         float accZ = accSum[Z]/accSumCount;
         //get velocity value for PID correction
         imuCalculateVelocityIntegration(Z,accTimeSum,accZ,accZ_old);
-        //get throttle correction value
-        //imuCalculatePIDCorrectionValue(accZ, accZ_old, accTimeSum);
+        //get correction value
+        imuCalculatePIDCorrectionValue(accZ, accZ_old, accTimeSum);
         //store acceleration value for next run
         accZ_old = accZ;
         //reset for next run

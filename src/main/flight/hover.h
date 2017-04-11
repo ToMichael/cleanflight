@@ -1,5 +1,10 @@
 #pragma once
 
+enum{
+    NOT_HOVER = 0,
+    IN_HOVER,
+    LEAVE_HOVER,
+};
 
 void velCurve(int32_t centre, int32_t data);
 

@@ -40,8 +40,8 @@
 #include "hover.h"
 
 
-#define PITCHROLL_CTRL_GAIN 0.5
-#define TEMPDB 10
+//#define PITCHROLL_CTRL_GAIN 0.5
+#define TEMPDB 5
 #define THRLIMIT 750
 #define HOVER_P 10
 #define HOVER_I 0.008
@@ -65,10 +65,10 @@ static uint32_t previousLandControlTime = 0;
 
 void velCurve(int32_t centre, int32_t data){
     
-    if(data<1100){
-        setPointVel -= (1100 - data)/250.0f;
-    } else if(data>1900){
-        setPointVel += (data - 1900)/250.0f;
+    if(data<rxConfig()->mincheck){
+        setPointVel -= (rxConfig()->mincheck - data)/250.0f;
+    } else if(data>rxConfig()->maxcheck){
+        setPointVel += (data - rxConfig()->maxcheck)/250.0f;
     } else {
         if (ABS(data-centre)<100){
             setPointVel += ((float)data - prevThroData)*0.2f;
@@ -82,9 +82,21 @@ void velCurve(int32_t centre, int32_t data){
 }
 
 
+
 void imuCalculatePIDCorrectionValue(float accZ, float accZ_old, float accTimeSum){
     
-    int32_t throttleCorrection = 0;
+    int32_t correction = 0;
+
+    //control situations are different if the quad is banking if outside deadband use bank gains
+    /*if ((rcData[ROLL] - rxConfig()->midrc) > rcControlsConfig()->deadband){
+        Kp = BANK_P;
+        Ki = BANK_I;
+        Kd = BANK_D;
+    } else { //use hover gains 
+        Kp = HOVER_P;
+        Ki = HOVER_I;
+        Kd = HOVER_D;
+  //  }*/
     
     //int32_t error;
 /*
@@ -112,10 +124,9 @@ void imuCalculatePIDCorrectionValue(float accZ, float accZ_old, float accTimeSum
 
     resfloat -= HOVER_D * (accZ + (accZ_old)) / 2;
 
-    throttleCorrection = (int32_t)constrain(resfloat,-THRLIMIT,THRLIMIT);
-
-    rcCommand[THROTTLE] = constrain(initialThro + throttleCorrection, motorConfig()->minthrottle, motorConfig()->maxthrottle);
-   
+//    if ((rcData[ROLL] - rxConfig->midrc()) > rcControlsConfig()->deadband){
+        correction = (int32_t)constrain(resfloat,-THRLIMIT,THRLIMIT);
+        rcCommand[THROTTLE] = constrain(initialThro + correction, motorConfig()->minthrottle, motorConfig()->maxthrottle);
 }
 
 void accelReset (int axis){
@@ -158,9 +169,11 @@ void imuCalculateVelocityIntegration(int axis,float accTimeSum,float acc, float 
     } else {
         pos[axis] = 0;
     }*/
-    if (ABS(rcData[THROTTLE] - prevThroData) < TEMPDB){
+   // if ((rcData[THROTTLE] > rxConfig()->mincheck) && (rcData[THROTTLE] < rxConfig()->maxcheck)){
+    if (ABS(rcData[THROTTLE] - prevThroData) > rcControlsConfig()->alt_hold_deadband){    
         vel[axis] += vel_acc;
     }
+   // }
 
     //For an increase in X, pitch craft -ve
     //For an increase in Y, roll craft +ve
@@ -269,7 +282,11 @@ void calculatePitchRollYawRCCommands(void){
 
 void rxHover(void){
     
-    calculatePitchRollYawRCCommands();   
+  //  if ((rcData[ROLL] - rxConfig()->midrc > rcControlsConfig()->deadband){
+
+  //  } else {
+        
+        calculatePitchRollYawRCCommands();   
 
     /*if (ABS(rcData[THROTTLE] - prevThroData) > rcControlsConfig()->alt_hold_deadband) {
     errorVelI=0;
@@ -290,7 +307,7 @@ void rxHover(void){
     //if outside deadband change the set point for velocity according to S curve
     //if data value unchanged (within 10) for 100 runs renter deadband and reconstruct curve
 
-    if (ABS(rcData[THROTTLE] - prevThroData) > TEMPDB){
+    if (ABS(rcData[THROTTLE] - prevThroData) > rcControlsConfig()->alt_hold_deadband){
         velCurve(centre,rcData[THROTTLE]);
         errorVelI=0;    
     }
@@ -300,13 +317,12 @@ void rxHover(void){
             errorVelI=0;
                 
     }*/    
-
-
+  //  }
 }
 
 void initialiseHoverMode(int32_t pitchLimits){
-    rcControlsConfig()->deadband = 40;
-    rcControlsConfig()->alt_hold_deadband = 10;
+    rcControlsConfig()->deadband = 100;
+    rcControlsConfig()->alt_hold_deadband = 5;
     prevThroData = rcData[THROTTLE];
     centre = rcData[THROTTLE];
     initialThro = rcCommand[THROTTLE];
@@ -361,7 +377,7 @@ int32_t leaveHoverMode(void){
 char getHoverMode (void){
     if (rcModeIsActive(BOXHOVER)) { //if in hover stick position:
         if(FLIGHT_MODE(HOVER_MODE)){ //and in hover mode
-            return 1;
+            return IN_HOVER;
         } else { // and not in hover mode
             //enter hover mode
             DISABLE_FLIGHT_MODE(!HOVER_MODE);
@@ -373,14 +389,14 @@ char getHoverMode (void){
 
         if(FLIGHT_MODE(HOVER_MODE)){
             //leave hover mode
-            return 2;
+            return LEAVE_HOVER;
         }
 
     }
 
     if (rcModeIsActive(BOXHOVERFREE)) {
         if(FLIGHT_MODE(HOVERFREE_MODE)){
-            return 1;
+            return IN_HOVER;
         } else {
             //enter hoverfree mode
             DISABLE_FLIGHT_MODE(!HOVERFREE_MODE);
@@ -393,9 +409,9 @@ char getHoverMode (void){
         
         if(FLIGHT_MODE(HOVERFREE_MODE)){
             //leave hoverfree mode
-            return 2;
+            return LEAVE_HOVER;
         }
     }
 
-    return 0;
+    return NOT_HOVER;
 }
