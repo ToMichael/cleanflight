@@ -170,9 +170,9 @@ void imuCalculateVelocityIntegration(int axis,float accTimeSum,float acc, float 
         pos[axis] = 0;
     }*/
    // if ((rcData[THROTTLE] > rxConfig()->mincheck) && (rcData[THROTTLE] < rxConfig()->maxcheck)){
-    if (ABS(rcData[THROTTLE] - prevThroData) > rcControlsConfig()->alt_hold_deadband){    
+   // if (ABS(rcData[THROTTLE] - prevThroData) < rcControlsConfig()->alt_hold_deadband){    
         vel[axis] += vel_acc;
-    }
+   // }
    // }
 
     //For an increase in X, pitch craft -ve
@@ -208,7 +208,7 @@ void imuCalculateVelocityIntegration(int axis,float accTimeSum,float acc, float 
          //   throCorrect = 0;
         // } 
 
-            storeParams[storeCount][0]=accTimeSum;
+            storeParams[storeCount][0]=setPointVel;
             storeParams[storeCount][1]=vel[Z];
             storeParams[storeCount][2]=acc;  
             storeCount++;
